@@ -1,0 +1,5 @@
+S-001|Demo Student|student1|sdvv456||
+123|Nate Dizon|pussydestroyer|45678|pussy:99|2026-12-12:Absent
+S-002|Vince Joshua Gaurano|VJG02-TUPM|45678||
+S004|Zekurou Kezreal|ZK04-TUPM|45678|Math:99|2003-12-12:Present
+67|Matthew|Matt67|Pdww|Math:100|2003-12-05:Present
