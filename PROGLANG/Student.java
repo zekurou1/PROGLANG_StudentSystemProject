@@ -46,16 +46,18 @@ public class Student extends User {
     }
 
     public String viewGradesAsText() {
-        if (grades.isEmpty()) return "No grades yet.";
+        // Return a list format with leading '- ' on each line so dashboard parsing works
+        if (grades == null || grades.isEmpty()) return "None";
         StringBuilder sb = new StringBuilder();
-        for (Grade g : grades) sb.append(g.getSubject()).append(": ").append(g.getScore()).append("\n");
+        for (Grade g : grades) sb.append("- ").append(g.getSubject()).append(": ").append(g.getScore()).append("\n");
         return sb.toString();
     }
 
     public String viewAttendanceAsText() {
-        if (attendanceRecords.isEmpty()) return "No attendance records yet.";
+        // Return a list format with leading '- ' on each line so dashboard parsing works
+        if (attendanceRecords == null || attendanceRecords.isEmpty()) return "None";
         StringBuilder sb = new StringBuilder();
-        for (Attendance a : attendanceRecords) sb.append(a.getDate()).append(": ").append(a.getStatus()).append("\n");
+        for (Attendance a : attendanceRecords) sb.append("- ").append(a.getDate()).append(": ").append(a.getStatus()).append("\n");
         return sb.toString();
     }
 }
