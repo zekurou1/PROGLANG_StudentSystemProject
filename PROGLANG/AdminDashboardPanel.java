@@ -1,33 +1,47 @@
-import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.*;
+import java.text.SimpleDateFormat;
 import java.util.List;
+import java.util.regex.Pattern;
+import javax.swing.*;
+import javax.swing.border.AbstractBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
 
 public class AdminDashboardPanel extends JPanel {
     private final App app;
     private final StudentService studentService;
-
     private Admin admin;
-    private JTabbedPane tabs;
 
-    // Student Management UI
-    private JTextField addStudentId;
-    private JTextField addName;
-    private JTextField addUsername;
+    // Color Palette (matching login)
+    private final Color DARK = Color.decode("#2F3E46");
+    private final Color MID = Color.decode("#52796F");
+    private final Color LIGHT = Color.decode("#84A98C");
+    private final Color SOFT = Color.decode("#CAD2C5");
+    private final Color DEEP = Color.decode("#354F52");
+    private final Color SUCCESS = new Color(76, 175, 80);
+    private final Color ERROR = new Color(176, 0, 32);
+    private final Color WARNING = new Color(255, 152, 0);
+
+    // Student Management Tab Components
+    private JTextField addStudentId, addName, addUsername;
     private JPasswordField addPassword;
     private JTable studentsTable;
+    private JLabel studentCountLabel;
+    private JLabel studentStatusLabel;
 
-    // Grades UI
-    private JTextField gradeStudentId;
-    private JTextField gradeSubject;
-    private JTextField gradeScore;
+    // Grades Management Tab Components
+    private JTextField gradeStudentId, gradeSubject, gradeScore;
+    private JLabel gradeStatusLabel;
 
-    // Attendance UI
-    private JTextField attStudentId;
-    private JTextField attDate;
+    // Attendance Management Tab Components
+    private JTextField attStudentId, attDate;
     private JComboBox<String> attStatus;
+    private JLabel attStatusLabel;
 
-    // Reports UI
+    // Reports Tab Components
     private JTextField reportStudentId;
     private JTextArea reportArea;
 
@@ -43,253 +57,839 @@ public class AdminDashboardPanel extends JPanel {
 
     public void refreshAll() {
         refreshStudentTable();
+        clearAllStatusLabels();
         reportArea.setText("");
     }
 
     private void buildUI() {
         setLayout(new BorderLayout());
+        setBackground(Color.WHITE);
 
-        JPanel top = new JPanel(new BorderLayout());
-        JLabel title = new JLabel("Admin Dashboard");
-        title.setFont(title.getFont().deriveFont(18f));
+        // Modern header with gradient
+        add(createHeader(), BorderLayout.NORTH);
 
-        JButton logout = new JButton("Logout");
-        logout.addActionListener(e -> app.showLogin());
-
-        top.add(title, BorderLayout.WEST);
-        top.add(logout, BorderLayout.EAST);
-
-        tabs = new JTabbedPane();
-
-        tabs.addTab("Student Management", buildStudentManagementTab());
-        tabs.addTab("Grades Management", buildGradesTab());
-        tabs.addTab("Attendance Management", buildAttendanceTab());
-        tabs.addTab("Reports", buildReportsTab());
-
-        add(top, BorderLayout.NORTH);
-        add(tabs, BorderLayout.CENTER);
+        // Tabbed content area
+        add(createTabbedPane(), BorderLayout.CENTER);
     }
 
+    // ========== HEADER SECTION ==========
+    private JPanel createHeader() {
+        JPanel header = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                GradientPaint gradient = new GradientPaint(
+                    0, 0, DARK,
+                    getWidth(), 0, DEEP
+                );
+                g2.setPaint(gradient);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+            }
+        };
+        header.setBorder(new EmptyBorder(20, 30, 20, 30));
+        header.setPreferredSize(new Dimension(0, 80));
+
+        // Left side - Title and subtitle
+        JPanel leftPanel = new JPanel();
+        leftPanel.setOpaque(false);
+        leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
+
+        JLabel title = new JLabel("Admin Dashboard");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        title.setForeground(SOFT);
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel subtitle = new JLabel("Manage Students, Grades & Attendance");
+        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        subtitle.setForeground(LIGHT);
+        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        leftPanel.add(title);
+        leftPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        leftPanel.add(subtitle);
+
+        // Right side - User info and logout
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 0));
+        rightPanel.setOpaque(false);
+
+        JLabel roleLabel = new JLabel("Logged in as: Admin");
+        roleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        roleLabel.setForeground(LIGHT);
+
+        JButton logoutBtn = createHeaderButton("Logout");
+        logoutBtn.addActionListener(e -> {
+            int result = JOptionPane.showConfirmDialog(
+                this,
+                "Are you sure you want to logout?",
+                "Confirm Logout",
+                JOptionPane.YES_NO_OPTION
+            );
+            if (result == JOptionPane.YES_OPTION) {
+                app.showLogin();
+            }
+        });
+
+        rightPanel.add(roleLabel);
+        rightPanel.add(logoutBtn);
+
+        header.add(leftPanel, BorderLayout.WEST);
+        header.add(rightPanel, BorderLayout.EAST);
+
+        return header;
+    }
+
+    private JButton createHeaderButton(String text) {
+        JButton btn = new JButton(text) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                if (getModel().isPressed()) {
+                    g2.setColor(SOFT);
+                } else if (getModel().isRollover()) {
+                    g2.setColor(LIGHT);
+                } else {
+                    g2.setColor(new Color(255, 255, 255, 30));
+                }
+
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 15, 15);
+
+                // Border
+                g2.setColor(SOFT);
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 15, 15);
+
+                g2.setColor(getForeground());
+                g2.setFont(getFont());
+                FontMetrics fm = g2.getFontMetrics();
+                int x = (getWidth() - fm.stringWidth(getText())) / 2;
+                int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(getText(), x, y);
+
+                g2.dispose();
+            }
+        };
+
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setForeground(Color.WHITE);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        btn.setPreferredSize(new Dimension(100, 35));
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        return btn;
+    }
+
+    // ========== TABBED PANE SECTION ==========
+    private JTabbedPane createTabbedPane() {
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        tabs.setBackground(Color.WHITE);
+        tabs.setForeground(DARK);
+
+        // Customize tab appearance
+        tabs.setUI(new javax.swing.plaf.basic.BasicTabbedPaneUI() {
+            @Override
+            protected void paintTabBackground(Graphics g, int tabPlacement, int tabIndex,
+                                              int x, int y, int w, int h, boolean isSelected) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                if (isSelected) {
+                    g2.setColor(MID);
+                } else {
+                    g2.setColor(new Color(245, 245, 245));
+                }
+                g2.fillRoundRect(x, y, w, h - 5, 10, 10);
+                g2.dispose();
+            }
+
+            @Override
+            protected void paintText(Graphics g, int tabPlacement, Font font, FontMetrics metrics,
+                                    int tabIndex, String title, Rectangle textRect, boolean isSelected) {
+                g.setFont(font);
+                g.setColor(isSelected ? Color.WHITE : DARK);
+                g.drawString(title, textRect.x, textRect.y + metrics.getAscent());
+            }
+        });
+
+        tabs.addTab("📚 Student Management", buildStudentManagementTab());
+        tabs.addTab("📊 Grades", buildGradesTab());
+        tabs.addTab("📅 Attendance", buildAttendanceTab());
+        tabs.addTab("📈 Reports", buildReportsTab());
+
+        return tabs;
+    }
+
+    // ========== STUDENT MANAGEMENT TAB ==========
     private JPanel buildStudentManagementTab() {
-        JPanel panel = new JPanel(new BorderLayout());
+        JPanel mainPanel = new JPanel(new BorderLayout(20, 20));
+        mainPanel.setBackground(Color.WHITE);
+        mainPanel.setBorder(new EmptyBorder(25, 25, 25, 25));
 
-        JPanel addPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(6, 6, 6, 6);
-        gbc.anchor = GridBagConstraints.WEST;
+        // Left side - Add Student Form (Card style)
+        JPanel formCard = createCardPanel();
+        formCard.setLayout(new BoxLayout(formCard, BoxLayout.Y_AXIS));
+        formCard.setBorder(new EmptyBorder(25, 25, 25, 25));
+        formCard.setPreferredSize(new Dimension(350, 0));
 
-        addStudentId = new JTextField(12);
-        addName = new JTextField(16);
-        addUsername = new JTextField(14);
-        addPassword = new JPasswordField(14);
+        JLabel formTitle = new JLabel("Add New Student");
+        formTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        formTitle.setForeground(DARK);
+        formTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JButton addBtn = new JButton("Add Student");
+        addStudentId = createStyledTextField();
+        addName = createStyledTextField();
+        addUsername = createStyledTextField();
+        addPassword = createStyledPasswordField();
+
+        JButton addBtn = createPrimaryButton("Add Student");
         addBtn.addActionListener(e -> addStudentAction());
 
-        gbc.gridx = 0; gbc.gridy = 0;
-        addPanel.add(new JLabel("Student ID:"), gbc);
-        gbc.gridx = 1;
-        addPanel.add(addStudentId, gbc);
+        studentStatusLabel = createStatusLabel();
 
-        gbc.gridx = 0; gbc.gridy = 1;
-        addPanel.add(new JLabel("Name:"), gbc);
-        gbc.gridx = 1;
-        addPanel.add(addName, gbc);
+        // Assembly
+        formCard.add(formTitle);
+        formCard.add(Box.createRigidArea(new Dimension(0, 20)));
+        formCard.add(createFieldGroup("Student ID", addStudentId));
+        formCard.add(Box.createRigidArea(new Dimension(0, 15)));
+        formCard.add(createFieldGroup("Full Name", addName));
+        formCard.add(Box.createRigidArea(new Dimension(0, 15)));
+        formCard.add(createFieldGroup("Username", addUsername));
+        formCard.add(Box.createRigidArea(new Dimension(0, 15)));
+        formCard.add(createFieldGroup("Password", addPassword));
+        formCard.add(Box.createRigidArea(new Dimension(0, 20)));
+        formCard.add(addBtn);
+        formCard.add(Box.createRigidArea(new Dimension(0, 10)));
+        formCard.add(studentStatusLabel);
+        formCard.add(Box.createVerticalGlue());
 
-        gbc.gridx = 0; gbc.gridy = 2;
-        addPanel.add(new JLabel("Username:"), gbc);
-        gbc.gridx = 1;
-        addPanel.add(addUsername, gbc);
+        // Right side - Student Table
+        JPanel tablePanel = createTablePanel();
 
-        gbc.gridx = 0; gbc.gridy = 3;
-        addPanel.add(new JLabel("Password:"), gbc);
-        gbc.gridx = 1;
-        addPanel.add(addPassword, gbc);
+        mainPanel.add(formCard, BorderLayout.WEST);
+        mainPanel.add(tablePanel, BorderLayout.CENTER);
 
-        gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2;
-        gbc.anchor = GridBagConstraints.CENTER;
-        addPanel.add(addBtn, gbc);
+        return mainPanel;
+    }
 
+    private JPanel createTablePanel() {
+        JPanel panel = new JPanel(new BorderLayout(0, 15));
+        panel.setOpaque(false);
+
+        // Top bar with count
+        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        topBar.setOpaque(false);
+
+        studentCountLabel = new JLabel("Total Students: 0");
+        studentCountLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        studentCountLabel.setForeground(DARK);
+
+        topBar.add(studentCountLabel);
+
+        // Table setup
         studentsTable = new JTable();
-        JScrollPane tableScroll = new JScrollPane(studentsTable);
+        studentsTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        studentsTable.setRowHeight(35);
+        studentsTable.setShowVerticalLines(false);
+        studentsTable.setGridColor(new Color(240, 240, 240));
+        studentsTable.setSelectionBackground(LIGHT);
+        studentsTable.setSelectionForeground(Color.WHITE);
+        studentsTable.setDefaultEditor(Object.class, null); // Non-editable
 
-        panel.add(addPanel, BorderLayout.WEST);
-        panel.add(tableScroll, BorderLayout.CENTER);
+        // Alternating row colors
+        studentsTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                if (!isSelected) {
+                    c.setBackground(row % 2 == 0 ? Color.WHITE : new Color(250, 250, 250));
+                }
+                return c;
+            }
+        });
+
+        // Style table header
+        JTableHeader header = studentsTable.getTableHeader();
+        header.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        header.setBackground(DARK);
+        header.setForeground(Color.WHITE);
+        header.setPreferredSize(new Dimension(0, 40));
+        ((DefaultTableCellRenderer)header.getDefaultRenderer()).setHorizontalAlignment(JLabel.LEFT);
+
+        JScrollPane scrollPane = new JScrollPane(studentsTable);
+        scrollPane.setBorder(BorderFactory.createLineBorder(SOFT, 1));
+
+        panel.add(topBar, BorderLayout.NORTH);
+        panel.add(scrollPane, BorderLayout.CENTER);
 
         refreshStudentTable();
+
         return panel;
     }
 
+    // ========== GRADES TAB ==========
     private JPanel buildGradesTab() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 8, 8, 8);
-        gbc.anchor = GridBagConstraints.WEST;
+        JPanel mainPanel = new JPanel(new GridBagLayout());
+        mainPanel.setBackground(Color.WHITE);
+        mainPanel.setBorder(new EmptyBorder(40, 40, 40, 40));
 
-        gradeStudentId = new JTextField(14);
-        gradeSubject = new JTextField(14);
-        gradeScore = new JTextField(6);
+        JPanel formCard = createCardPanel();
+        formCard.setLayout(new BoxLayout(formCard, BoxLayout.Y_AXIS));
+        formCard.setBorder(new EmptyBorder(30, 30, 30, 30));
+        formCard.setPreferredSize(new Dimension(450, 400));
 
-        JButton assignBtn = new JButton("Assign/Update Grade");
+        JLabel formTitle = new JLabel("Assign Grade");
+        formTitle.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        formTitle.setForeground(DARK);
+        formTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        gradeStudentId = createStyledTextField();
+        gradeSubject = createStyledTextField();
+        gradeScore = createStyledTextField();
+
+        JButton assignBtn = createPrimaryButton("Assign Grade");
         assignBtn.addActionListener(e -> assignGradeAction());
 
-        gbc.gridx = 0; gbc.gridy = 0;
-        panel.add(new JLabel("Student ID:"), gbc);
-        gbc.gridx = 1;
-        panel.add(gradeStudentId, gbc);
+        gradeStatusLabel = createStatusLabel();
 
-        gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(new JLabel("Subject:"), gbc);
-        gbc.gridx = 1;
-        panel.add(gradeSubject, gbc);
+        // Add Enter key support
+        ActionListener enterAction = e -> assignGradeAction();
+        gradeStudentId.addActionListener(enterAction);
+        gradeSubject.addActionListener(enterAction);
+        gradeScore.addActionListener(enterAction);
 
-        gbc.gridx = 0; gbc.gridy = 2;
-        panel.add(new JLabel("Score (0-100):"), gbc);
-        gbc.gridx = 1;
-        panel.add(gradeScore, gbc);
+        formCard.add(formTitle);
+        formCard.add(Box.createRigidArea(new Dimension(0, 25)));
+        formCard.add(createFieldGroup("Student ID", gradeStudentId));
+        formCard.add(Box.createRigidArea(new Dimension(0, 18)));
+        formCard.add(createFieldGroup("Subject", gradeSubject));
+        formCard.add(Box.createRigidArea(new Dimension(0, 18)));
+        formCard.add(createFieldGroup("Score (0-100)", gradeScore));
+        formCard.add(Box.createRigidArea(new Dimension(0, 25)));
+        formCard.add(assignBtn);
+        formCard.add(Box.createRigidArea(new Dimension(0, 12)));
+        formCard.add(gradeStatusLabel);
+        formCard.add(Box.createVerticalGlue());
 
-        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
-        gbc.anchor = GridBagConstraints.CENTER;
-        panel.add(assignBtn, gbc);
+        mainPanel.add(formCard);
 
-        return panel;
+        return mainPanel;
     }
 
+    // ========== ATTENDANCE TAB ==========
     private JPanel buildAttendanceTab() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 8, 8, 8);
-        gbc.anchor = GridBagConstraints.WEST;
+        JPanel mainPanel = new JPanel(new GridBagLayout());
+        mainPanel.setBackground(Color.WHITE);
+        mainPanel.setBorder(new EmptyBorder(40, 40, 40, 40));
 
-        attStudentId = new JTextField(14);
-        attDate = new JTextField(10);
-        attStatus = new JComboBox<>(new String[]{"Present", "Absent"});
+        JPanel formCard = createCardPanel();
+        formCard.setLayout(new BoxLayout(formCard, BoxLayout.Y_AXIS));
+        formCard.setBorder(new EmptyBorder(30, 30, 30, 30));
+        formCard.setPreferredSize(new Dimension(450, 420));
 
-        JButton markBtn = new JButton("Mark/Update Attendance");
+        JLabel formTitle = new JLabel("Mark Attendance");
+        formTitle.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        formTitle.setForeground(DARK);
+        formTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        attStudentId = createStyledTextField();
+        attDate = createStyledTextField();
+        
+        // Placeholder for date field
+        attDate.setText(new SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date()));
+        attDate.setForeground(Color.GRAY);
+        attDate.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                if (attDate.getForeground() == Color.GRAY) {
+                    attDate.setText("");
+                    attDate.setForeground(DARK);
+                }
+            }
+        });
+
+        attStatus = createStyledComboBox(new String[]{"Present", "Absent"});
+
+        JButton markBtn = createPrimaryButton("Mark Attendance");
         markBtn.addActionListener(e -> markAttendanceAction());
 
-        gbc.gridx = 0; gbc.gridy = 0;
-        panel.add(new JLabel("Student ID:"), gbc);
-        gbc.gridx = 1;
-        panel.add(attStudentId, gbc);
+        attStatusLabel = createStatusLabel();
 
-        gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(new JLabel("Date (YYYY-MM-DD):"), gbc);
-        gbc.gridx = 1;
-        panel.add(attDate, gbc);
+        // Add Enter key support
+        ActionListener enterAction = e -> markAttendanceAction();
+        attStudentId.addActionListener(enterAction);
+        attDate.addActionListener(enterAction);
 
-        gbc.gridx = 0; gbc.gridy = 2;
-        panel.add(new JLabel("Status:"), gbc);
-        gbc.gridx = 1;
-        panel.add(attStatus, gbc);
+        formCard.add(formTitle);
+        formCard.add(Box.createRigidArea(new Dimension(0, 25)));
+        formCard.add(createFieldGroup("Student ID", attStudentId));
+        formCard.add(Box.createRigidArea(new Dimension(0, 18)));
+        formCard.add(createFieldGroup("Date (YYYY-MM-DD)", attDate));
+        formCard.add(Box.createRigidArea(new Dimension(0, 18)));
+        formCard.add(createFieldGroup("Status", attStatus));
+        formCard.add(Box.createRigidArea(new Dimension(0, 25)));
+        formCard.add(markBtn);
+        formCard.add(Box.createRigidArea(new Dimension(0, 12)));
+        formCard.add(attStatusLabel);
+        formCard.add(Box.createVerticalGlue());
 
-        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
-        gbc.anchor = GridBagConstraints.CENTER;
-        panel.add(markBtn, gbc);
+        mainPanel.add(formCard);
 
-        return panel;
+        return mainPanel;
     }
 
+    // ========== REPORTS TAB ==========
     private JPanel buildReportsTab() {
-        JPanel panel = new JPanel(new BorderLayout());
+        JPanel mainPanel = new JPanel(new BorderLayout(20, 20));
+        mainPanel.setBackground(Color.WHITE);
+        mainPanel.setBorder(new EmptyBorder(25, 25, 25, 25));
 
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        reportStudentId = new JTextField(14);
-        JButton viewBtn = new JButton("View Summary");
+        // Top search bar
+        JPanel searchPanel = createCardPanel();
+        searchPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 15, 15));
+        searchPanel.setPreferredSize(new Dimension(0, 70));
+
+        JLabel searchLabel = new JLabel("Student ID:");
+        searchLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        searchLabel.setForeground(DARK);
+
+        reportStudentId = createStyledTextField();
+        reportStudentId.setPreferredSize(new Dimension(200, 35));
+
+        JButton viewBtn = createPrimaryButton("View Report");
+        viewBtn.setPreferredSize(new Dimension(150, 35));
         viewBtn.addActionListener(e -> viewReportAction());
 
-        top.add(new JLabel("Student ID:"));
-        top.add(reportStudentId);
-        top.add(viewBtn);
+        reportStudentId.addActionListener(e -> viewReportAction());
 
+        searchPanel.add(searchLabel);
+        searchPanel.add(reportStudentId);
+        searchPanel.add(viewBtn);
+
+        // Report display area
         reportArea = new JTextArea();
         reportArea.setEditable(false);
+        reportArea.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        reportArea.setLineWrap(true);
+        reportArea.setWrapStyleWord(true);
+        reportArea.setMargin(new Insets(15, 15, 15, 15));
+        reportArea.setBackground(new Color(250, 250, 250));
 
-        panel.add(top, BorderLayout.NORTH);
-        panel.add(new JScrollPane(reportArea), BorderLayout.CENTER);
+        JScrollPane scrollPane = new JScrollPane(reportArea);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(SOFT, 1),
+            BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
 
-        return panel;
+        mainPanel.add(searchPanel, BorderLayout.NORTH);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+
+        return mainPanel;
     }
 
+    // ========== ACTION HANDLERS ==========
     private void addStudentAction() {
         String id = addStudentId.getText().trim();
         String name = addName.getText().trim();
         String username = addUsername.getText().trim();
-        String pass = new String(addPassword.getPassword());
+        String password = new String(addPassword.getPassword());
 
-        boolean ok = studentService.addStudent(id, name, username, pass);
-        if (ok) {
-            JOptionPane.showMessageDialog(this, "Student added successfully.");
-            addStudentId.setText("");
-            addName.setText("");
-            addUsername.setText("");
-            addPassword.setText("");
+        // Validation
+        if (id.isEmpty() || name.isEmpty() || username.isEmpty() || password.isEmpty()) {
+            showStatus(studentStatusLabel, "All fields are required", ERROR);
+            return;
+        }
+
+        if (password.length() < 6) {
+            showStatus(studentStatusLabel, "Password must be at least 6 characters", ERROR);
+            return;
+        }
+
+        boolean success = studentService.addStudent(id, name, username, password);
+        
+        if (success) {
+            showStatus(studentStatusLabel, "✓ Student added successfully", SUCCESS);
+            clearStudentForm();
             refreshStudentTable();
         } else {
-            JOptionPane.showMessageDialog(this, "Failed to add student. Check duplicates and required fields.");
+            showStatus(studentStatusLabel, "Failed to add student. Check for duplicates", ERROR);
         }
     }
 
     private void assignGradeAction() {
-        String id = gradeStudentId.getText().trim();
+        String studentId = gradeStudentId.getText().trim();
         String subject = gradeSubject.getText().trim();
-        String scoreStr = gradeScore.getText().trim();
+        String scoreText = gradeScore.getText().trim();
 
-        int score;
-        try {
-            score = Integer.parseInt(scoreStr);
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Score must be a number.");
+        // Validation
+        if (studentId.isEmpty() || subject.isEmpty() || scoreText.isEmpty()) {
+            showStatus(gradeStatusLabel, "All fields are required", ERROR);
             return;
         }
 
-        boolean ok = studentService.assignGrade(id, subject, score);
-        if (ok) {
-            JOptionPane.showMessageDialog(this, "Grade saved (transaction logged + master updated).");
+        int score;
+        try {
+            score = Integer.parseInt(scoreText);
+        } catch (NumberFormatException e) {
+            showStatus(gradeStatusLabel, "Score must be a valid number", ERROR);
+            return;
+        }
+
+        if (score < 0 || score > 100) {
+            showStatus(gradeStatusLabel, "Score must be between 0 and 100", ERROR);
+            return;
+        }
+
+        boolean success = studentService.assignGrade(studentId, subject, score);
+        
+        if (success) {
+            showStatus(gradeStatusLabel, "✓ Grade assigned successfully", SUCCESS);
+            clearGradeForm();
             refreshStudentTable();
         } else {
-            JOptionPane.showMessageDialog(this, "Failed to assign grade. Check Student ID, subject, score range.");
+            showStatus(gradeStatusLabel, "Failed to assign grade. Check student ID", ERROR);
         }
     }
 
     private void markAttendanceAction() {
-        String id = attStudentId.getText().trim();
+        String studentId = attStudentId.getText().trim();
         String date = attDate.getText().trim();
         String status = (String) attStatus.getSelectedItem();
 
-        boolean ok = studentService.markAttendance(id, date, status);
-        if (ok) {
-            JOptionPane.showMessageDialog(this, "Attendance saved (transaction logged + master updated).");
+        // Validation
+        if (studentId.isEmpty() || date.isEmpty()) {
+            showStatus(attStatusLabel, "Student ID and Date are required", ERROR);
+            return;
+        }
+
+        // Validate date format
+        if (!Pattern.matches("\\d{4}-\\d{2}-\\d{2}", date)) {
+            showStatus(attStatusLabel, "Date must be in YYYY-MM-DD format", ERROR);
+            return;
+        }
+
+        boolean success = studentService.markAttendance(studentId, date, status);
+        
+        if (success) {
+            showStatus(attStatusLabel, "✓ Attendance marked successfully", SUCCESS);
+            clearAttendanceForm();
             refreshStudentTable();
         } else {
-            JOptionPane.showMessageDialog(this, "Failed to mark attendance. Check Student ID, date format, status.");
+            showStatus(attStatusLabel, "Failed to mark attendance. Check student ID", ERROR);
         }
     }
 
     private void viewReportAction() {
-        String id = reportStudentId.getText().trim();
-        studentService.getByStudentId(id).ifPresentOrElse(
-                s -> reportArea.setText(studentService.buildStudentSummary(s)),
-                () -> reportArea.setText("Student not found.")
+        String studentId = reportStudentId.getText().trim();
+        
+        if (studentId.isEmpty()) {
+            reportArea.setText("Please enter a Student ID");
+            return;
+        }
+
+        studentService.getByStudentId(studentId).ifPresentOrElse(
+            student -> reportArea.setText(studentService.buildStudentSummary(student)),
+            () -> reportArea.setText("⚠ Student not found with ID: " + studentId)
         );
     }
 
-    private void refreshStudentTable() {
-        List<Student> list = studentService.getAllStudents();
+    // ========== UTILITY METHODS ==========
+    private JPanel createCardPanel() {
+        return new RoundedPanel(15, Color.WHITE);
+    }
 
+    private JPanel createFieldGroup(String label, JComponent field) {
+        JPanel group = new JPanel();
+        group.setLayout(new BoxLayout(group, BoxLayout.Y_AXIS));
+        group.setOpaque(false);
+        group.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel lbl = new JLabel(label);
+        lbl.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lbl.setForeground(DEEP);
+        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        field.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        group.add(lbl);
+        group.add(Box.createRigidArea(new Dimension(0, 6)));
+        group.add(field);
+
+        return group;
+    }
+
+    private JTextField createStyledTextField() {
+        JTextField field = new JTextField() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                super.paintComponent(g);
+                g2.dispose();
+            }
+        };
+
+        Dimension size = new Dimension(300, 35);
+        field.setMaximumSize(size);
+        field.setPreferredSize(size);
+        field.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        field.setBackground(new Color(250, 250, 250));
+        field.setForeground(DARK);
+        field.setBorder(new RoundedBorder(LIGHT, 12));
+        field.setMargin(new Insets(0, 12, 0, 12));
+        field.setOpaque(false);
+
+        field.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                field.setBorder(new RoundedBorder(MID, 12));
+            }
+
+            @Override
+            public void focusLost(FocusEvent e) {
+                field.setBorder(new RoundedBorder(LIGHT, 12));
+            }
+        });
+
+        return field;
+    }
+
+    private JPasswordField createStyledPasswordField() {
+        JPasswordField field = new JPasswordField() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                super.paintComponent(g);
+                g2.dispose();
+            }
+        };
+
+        Dimension size = new Dimension(300, 35);
+        field.setMaximumSize(size);
+        field.setPreferredSize(size);
+        field.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        field.setBackground(new Color(250, 250, 250));
+        field.setForeground(DARK);
+        field.setBorder(new RoundedBorder(LIGHT, 12));
+        field.setMargin(new Insets(0, 12, 0, 12));
+        field.setOpaque(false);
+
+        field.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                field.setBorder(new RoundedBorder(MID, 12));
+            }
+
+            @Override
+            public void focusLost(FocusEvent e) {
+                field.setBorder(new RoundedBorder(LIGHT, 12));
+            }
+        });
+
+        return field;
+    }
+
+    private JComboBox<String> createStyledComboBox(String[] items) {
+        JComboBox<String> combo = new JComboBox<>(items);
+        
+        Dimension size = new Dimension(300, 35);
+        combo.setMaximumSize(size);
+        combo.setPreferredSize(size);
+        combo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        combo.setBackground(new Color(250, 250, 250));
+        combo.setForeground(DARK);
+        combo.setBorder(new RoundedBorder(LIGHT, 12));
+
+        return combo;
+    }
+
+    private JButton createPrimaryButton(String text) {
+        JButton btn = new JButton(text) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                if (!isEnabled()) {
+                    g2.setColor(new Color(132, 169, 140, 150));
+                } else if (getModel().isPressed()) {
+                    g2.setColor(DARK);
+                } else if (getModel().isRollover()) {
+                    g2.setColor(DEEP);
+                } else {
+                    g2.setColor(MID);
+                }
+
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+
+                g2.setColor(Color.WHITE);
+                g2.setFont(getFont());
+                FontMetrics fm = g2.getFontMetrics();
+                int x = (getWidth() - fm.stringWidth(getText())) / 2;
+                int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(getText(), x, y);
+
+                g2.dispose();
+            }
+        };
+
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setForeground(Color.WHITE);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        
+        Dimension size = new Dimension(300, 40);
+        btn.setMaximumSize(size);
+        btn.setPreferredSize(size);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        return btn;
+    }
+
+    private JLabel createStatusLabel() {
+        JLabel label = new JLabel(" ");
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        label.setMaximumSize(new Dimension(300, 20));
+        return label;
+    }
+
+    private void showStatus(JLabel label, String message, Color color) {
+        label.setText(message);
+        label.setForeground(color);
+        
+        // Auto-clear after 5 seconds
+        Timer timer = new Timer(5000, e -> label.setText(" "));
+        timer.setRepeats(false);
+        timer.start();
+    }
+
+    private void clearAllStatusLabels() {
+        if (studentStatusLabel != null) studentStatusLabel.setText(" ");
+        if (gradeStatusLabel != null) gradeStatusLabel.setText(" ");
+        if (attStatusLabel != null) attStatusLabel.setText(" ");
+    }
+
+    private void clearStudentForm() {
+        addStudentId.setText("");
+        addName.setText("");
+        addUsername.setText("");
+        addPassword.setText("");
+    }
+
+    private void clearGradeForm() {
+        gradeStudentId.setText("");
+        gradeSubject.setText("");
+        gradeScore.setText("");
+    }
+
+    private void clearAttendanceForm() {
+        attStudentId.setText("");
+        attDate.setText(new SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date()));
+        attDate.setForeground(Color.GRAY);
+    }
+
+    private void refreshStudentTable() {
+        List<Student> students = studentService.getAllStudents();
+        
         DefaultTableModel model = new DefaultTableModel(
-                new Object[]{"Student ID", "Name", "Username", "Grades Count", "Attendance Count"},
-                0
+            new Object[]{"Student ID", "Name", "Username", "Grades", "Attendance"}, 0
         );
-        for (Student s : list) {
+
+        for (Student student : students) {
             model.addRow(new Object[]{
-                    s.getStudentId(),
-                    s.getName(),
-                    s.getUsername(),
-                    s.getGrades().size(),
-                    s.getAttendanceRecords().size()
+                student.getStudentId(),
+                student.getName(),
+                student.getUsername(),
+                student.getGrades().size(),
+                student.getAttendanceRecords().size()
             });
         }
+
         studentsTable.setModel(model);
+        
+        if (studentCountLabel != null) {
+            studentCountLabel.setText("Total Students: " + students.size());
+        }
+    }
+
+    // ========== CUSTOM COMPONENTS ==========
+    private class RoundedPanel extends JPanel {
+        private final int cornerRadius;
+        private final Color bgColor;
+
+        public RoundedPanel(int radius, Color color) {
+            super();
+            this.cornerRadius = radius;
+            this.bgColor = color;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            // Shadow
+            g2.setColor(new Color(0, 0, 0, 15));
+            g2.fillRoundRect(3, 3, getWidth() - 6, getHeight() - 6, cornerRadius, cornerRadius);
+
+            // Background
+            g2.setColor(bgColor);
+            g2.fillRoundRect(0, 0, getWidth() - 3, getHeight() - 3, cornerRadius, cornerRadius);
+
+            // Border
+            g2.setColor(SOFT);
+            g2.setStroke(new BasicStroke(1.5f));
+            g2.drawRoundRect(0, 0, getWidth() - 3, getHeight() - 3, cornerRadius, cornerRadius);
+
+            g2.dispose();
+        }
+    }
+
+    private class RoundedBorder extends AbstractBorder {
+        private final Color color;
+        private final int radius;
+
+        public RoundedBorder(Color color, int radius) {
+            this.color = color;
+            this.radius = radius;
+        }
+
+        @Override
+        public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(color);
+            g2.setStroke(new BasicStroke(1.5f));
+            g2.drawRoundRect(x, y, width - 1, height - 1, radius, radius);
+            g2.dispose();
+        }
+
+        @Override
+        public Insets getBorderInsets(Component c) {
+            return new Insets(8, 12, 8, 12);
+        }
+
+        @Override
+        public Insets getBorderInsets(Component c, Insets insets) {
+            insets.left = insets.right = 12;
+            insets.top = insets.bottom = 8;
+            return insets;
+        }
     }
 }
